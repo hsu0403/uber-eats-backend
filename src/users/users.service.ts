@@ -97,9 +97,17 @@ export class UsersService {
   ): Promise<EditProfileOutput> {
     try {
       const user = await this.users.findOne({ where: { id: userId } });
+      const existEmail = await this.users.findOne({ where: { email } });
+      if (existEmail && user.email !== email) {
+        return {
+          ok: false,
+          error: 'This email already exists.',
+        };
+      }
       if (email) {
         user.email = email;
         user.emailVerified = false;
+        await this.verification.delete({ user: { id: user.id } });
         const verify = await this.verification.save(
           this.verification.create({ user }),
         );
@@ -115,7 +123,7 @@ export class UsersService {
     } catch (error) {
       return {
         ok: false,
-        error,
+        error: 'Could not update profile.',
       };
     }
   }
@@ -134,7 +142,7 @@ export class UsersService {
       }
       throw new Error();
     } catch (error) {
-      return { ok: false, error };
+      return { ok: false, error: 'verification not found.' };
     }
   }
 }
