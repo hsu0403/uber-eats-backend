@@ -269,6 +269,7 @@ export class RestaurantService {
     try {
       const restaurant = await this.restaurants.findOne({
         where: { id: createDishInput.restaurantId },
+        relations: ['menu'],
       });
       if (!restaurant) {
         return {
@@ -317,7 +318,7 @@ export class RestaurantService {
           error: "You can't do that.",
         };
       }
-      await this.dishes.save({ id: editDishInput.dishId, ...editDishInput });
+      await this.dishes.save([{ id: editDishInput.dishId, ...editDishInput }]);
       return { ok: true };
     } catch (error) {
       return {
