@@ -12,7 +12,7 @@ import { Restaurant } from 'src/restaurant/entities/restaurant.entity';
 import { User, UserRole } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { CreateOrderInput, CreateOrderOutput } from './dtos/create-order.dto';
-import { EditOrderInput, EditOrderOutput } from './dtos/edit-order.dto';
+import { EditOrderOutput, EditOrderInput } from './dtos/edit-order.dto';
 import { GetOrderInput, GetOrderOutput } from './dtos/get-order.dto';
 import { GetOrdersInput, GetOrdersOutput } from './dtos/get-orders.dto';
 import { TakeOrderInput, TakeOrderOutput } from './dtos/take-order.dto';
@@ -72,15 +72,15 @@ export class OrderService {
           };
         }
         let dishFinalPrice = dish.price;
-        for (const itemOption of item.options) {
-          const dishOption = dish.options.find(
-            (dishOption) => dishOption.name === itemOption.name,
-          );
-          if (dishOption) {
-            if (dishOption.extra) {
+        if (item.options) {
+          for (const itemOption of item.options) {
+            const dishOption = dish.options.find(
+              (dishOption) => dishOption.name === itemOption.name,
+            );
+            if (dishOption) {
               dishFinalPrice += dishOption.extra;
-            } else {
-              const dishOptionChoice = dishOption.choices.find(
+
+              const dishOptionChoice = dishOption.choices?.find(
                 (optionChoice) => optionChoice.name === itemOption.choice,
               );
               if (dishOptionChoice) {
@@ -91,6 +91,7 @@ export class OrderService {
             }
           }
         }
+
         orderFinalPrice += dishFinalPrice;
         const orderItem = await this.orderItems.save(
           this.orderItems.create({
@@ -107,6 +108,7 @@ export class OrderService {
           restaurant,
           total: orderFinalPrice,
           items: orderItems,
+          destination: createOrderInput.destination,
         }),
       );
 
@@ -116,6 +118,7 @@ export class OrderService {
 
       return {
         ok: true,
+        orderId: order.id,
       };
     } catch (error) {
       return {
@@ -127,33 +130,72 @@ export class OrderService {
 
   async getOrders(
     user: User,
-    { status }: GetOrdersInput,
+    { status, page }: GetOrdersInput,
   ): Promise<GetOrdersOutput> {
     try {
       let orders: Order[];
+      let totalResults: number;
       if (user.role === UserRole.Client) {
         orders = await this.orders.find({
           where: { customer: { id: user.id }, ...(status && { status }) },
+          take: 15,
+          skip: (page - 1) * 15,
+        });
+        totalResults = await this.orders.count({
+          where: { customer: { id: user.id }, ...(status && { status }) },
         });
       } else if (user.role === UserRole.Delivery) {
-        orders = await this.orders.find({
-          where: { driver: { id: user.id }, ...(status && { status }) },
+        if (status === OrderStatus.Cooked) {
+          orders = await this.orders.find({
+            where: { status: OrderStatus.Cooked },
+            take: 15,
+            skip: (page - 1) * 15,
+          });
+          orders = orders.filter((order) => order.driver === null);
+        } else {
+          orders = await this.orders.find({
+            where: { driver: { id: user.id }, ...(status && { status }) },
+            take: 15,
+            skip: (page - 1) * 15,
+          });
+        }
+        totalResults = await this.orders.count({
+          where: {
+            driver: { id: user.id },
+            ...(status && { status }),
+          },
         });
       } else if (user.role === UserRole.Owner) {
         const restaurants = await this.restaurants.find({
           where: {
-            ownerId: user.id,
+            owner: { id: user.id },
           },
           relations: ['orders'],
         });
         orders = restaurants.map((restaurant) => restaurant.orders).flat(1);
         if (status) {
+          const count = orders.filter(
+            (order) => order.status === status,
+          ).length;
+          totalResults = count;
+          const skip = (page - 1) * 15;
+          const last = page * 15;
           orders = orders.filter((order) => order.status === status);
+          if (count > 15) {
+            if (count < last) {
+              orders = orders.slice(skip, count);
+            }
+            if (count > last) {
+              orders = orders.slice(skip, last);
+            }
+          }
         }
       }
       return {
         ok: true,
         orders,
+        totalPages: Math.ceil(totalResults / 15),
+        totalResults,
       };
     } catch (error) {
       return {
@@ -167,7 +209,6 @@ export class OrderService {
     try {
       const order = await this.orders.findOne({
         where: { id },
-        relations: ['restaurant'],
       });
       if (!order) {
         return {
@@ -267,7 +308,7 @@ export class OrderService {
           error: 'Order not found.',
         };
       }
-      if (!order.driver) {
+      if (order.driver) {
         return {
           ok: false,
           error: 'The delivery already exists.',
@@ -278,6 +319,7 @@ export class OrderService {
       await this.pubsub.publish(NEW_ORDER_UPDATE, { orderUpdates: newOrder });
       return {
         ok: true,
+        orderId: order.id,
       };
     } catch (error) {
       return {

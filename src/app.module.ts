@@ -1,10 +1,5 @@
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import {
-  MiddlewareConsumer,
-  Module,
-  NestModule,
-  RequestMethod,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { GraphQLModule } from '@nestjs/graphql';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -13,7 +8,6 @@ import { Restaurant } from './restaurant/entities/restaurant.entity';
 import { UsersModule } from './users/users.module';
 import { User } from './users/entities/user.entity';
 import { JwtModule } from './jwt/jwt.module';
-import { JwtMiddleware } from './jwt/jwt.middleware';
 import { Verification } from './users/entities/verification.entity';
 import { EmailModule } from './email/email.module';
 import { Category } from './restaurant/entities/category.entity';
@@ -27,6 +21,9 @@ import { CommonModule } from './common/common.module';
 import { PaymentsModule } from './payments/payments.module';
 import { Payment } from './payments/entities/payment.entity';
 import { ScheduleModule } from '@nestjs/schedule';
+import { UploadsModule } from './uploads/uploads.module';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { PugAdapter } from '@nestjs-modules/mailer/dist/adapters/pug.adapter';
 
 @Module({
   imports: [
@@ -45,6 +42,8 @@ import { ScheduleModule } from '@nestjs/schedule';
         MAILGUN_API_KEY: Joi.string().required(),
         MAILGUN_DOMAIN_NAME: Joi.string().required(),
         MAILGUN_FROM_EMAIL: Joi.string().required(),
+        AWS_ACCESS_KEY_ID: Joi.string().required(),
+        AWS_SECRET_ACCESS_KEY: Joi.string().required(),
       }),
     }),
     GraphQLModule.forRoot<ApolloDriverConfig>({
@@ -64,8 +63,11 @@ import { ScheduleModule } from '@nestjs/schedule';
       driver: ApolloDriver,
       autoSchemaFile: true,
       sortSchema: true,
+      installSubscriptionHandlers: true,
       context: ({ req }) => {
-        return { token: req.headers['x-jwt'] };
+        return {
+          token: req?.headers['x-jwt'],
+        };
       },
     }),
     TypeOrmModule.forRoot({
@@ -89,6 +91,29 @@ import { ScheduleModule } from '@nestjs/schedule';
         Payment,
       ],
     }),
+    MailerModule.forRootAsync({
+      useFactory: () => ({
+        transport: {
+          host: 'smtp.naver.com',
+          port: 587,
+          auth: {
+            user: process.env.EMAIL_AUTH_EMAIL,
+            pass: process.env.EMAIL_AUTH_PASSWORD,
+          },
+        },
+        defaults: {
+          from: `"${process.env.EMAIL_FROM_USER_NAME}" <${process.env.EMAIL_AUTH_EMAIL}>`,
+        },
+        preview: true,
+        template: {
+          dir: __dirname + '/templates',
+          adapter: new PugAdapter(),
+          options: {
+            strict: true,
+          },
+        },
+      }),
+    }),
     ScheduleModule.forRoot(),
     UsersModule,
     RestaurantModule,
@@ -97,13 +122,10 @@ import { ScheduleModule } from '@nestjs/schedule';
     JwtModule.forRoot({
       privateKey: process.env.TOKEN_SECRET,
     }),
-    EmailModule.forRoot({
-      apiKey: process.env.MAILGUN_API_KEY,
-      domain: process.env.MAILGUN_DOMAIN_NAME,
-      fromEmail: process.env.MAILGUN_FROM_EMAIL,
-    }),
+    EmailModule,
     OrdersModule,
     PaymentsModule,
+    UploadsModule,
   ],
   controllers: [],
   providers: [],

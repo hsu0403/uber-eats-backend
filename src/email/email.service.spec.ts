@@ -1,4 +1,4 @@
-import { Test } from '@nestjs/testing';
+/** import { Test } from '@nestjs/testing';
 import { EmailService } from './email.service';
 import { CONFIG_OPTIONS } from 'src/common/common.constants';
 import got from 'got';
@@ -79,3 +79,4 @@ describe('EmailService', () => {
     });
   });
 });
+*/

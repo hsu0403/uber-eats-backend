@@ -28,6 +28,16 @@ export enum OrderStatus {
 
 registerEnumType(OrderStatus, { name: 'OrderStatus' });
 
+@InputType('DestinationInputType', { isAbstract: true })
+@ObjectType()
+export class Destination {
+  @Field(() => Number)
+  lat: number;
+
+  @Field(() => Number)
+  lng: number;
+}
+
 @InputType('OrderInputType', { isAbstract: true })
 @ObjectType()
 @Entity()
@@ -74,4 +84,8 @@ export class Order extends CoreEntity {
   @Column({ type: 'enum', enum: OrderStatus, default: OrderStatus.Pending })
   @Field(() => OrderStatus)
   status: OrderStatus;
+
+  @Column({ type: 'json' })
+  @Field(() => Destination)
+  destination: Destination;
 }

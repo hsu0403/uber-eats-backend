@@ -17,7 +17,7 @@ export class Category extends CoreEntity {
   @Field(() => String, { nullable: true })
   @Column({ nullable: true })
   @IsString()
-  iconImg: string;
+  iconImg?: string;
 
   @Field(() => String)
   @Column({ unique: true })

@@ -19,6 +19,11 @@ import {
   EditRestaurantInput,
   EditRestaurantOutput,
 } from './dtos/edit-restaurant.dto';
+import {
+  MyRestaurantInput,
+  MyRestaurantOutput,
+} from './dtos/my-restaurant.dto';
+import { MyRestaurantsOutput } from './dtos/my-restaurants.dto';
 import { RestaurantInput, RestaurantOutput } from './dtos/restaurant.dto';
 import { RestaurantsInput, RestaurantsOutput } from './dtos/restaurants.dto';
 import {
@@ -68,7 +73,7 @@ export class RestaurantService {
       );
       newRestaurant.category = category;
       await this.restaurants.save(newRestaurant);
-      return { ok: true };
+      return { ok: true, restaurantId: newRestaurant.id };
     } catch (error) {
       return {
         ok: false,
@@ -176,8 +181,8 @@ export class RestaurantService {
       }
       const restaurants = await this.restaurants.find({
         where: { category: { name: category.name } },
-        take: 25,
-        skip: (page - 1) * 25,
+        take: 15,
+        skip: (page - 1) * 15,
         order: {
           isPromoted: 'DESC',
         },
@@ -187,7 +192,7 @@ export class RestaurantService {
         ok: true,
         restaurants,
         category,
-        totalPages: Math.ceil(totalResults / 25),
+        totalPages: Math.ceil(totalResults / 15),
         totalResults,
       };
     } catch (error) {
@@ -195,11 +200,63 @@ export class RestaurantService {
     }
   }
 
+  async myRestaurants(owner: User): Promise<MyRestaurantsOutput> {
+    try {
+      const restaurants = await this.restaurants.find({
+        where: { owner: { id: owner.id } },
+      });
+
+      return {
+        restaurants,
+        ok: true,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error,
+      };
+    }
+  }
+
+  async myRestaurant(
+    owner: User,
+    { id }: MyRestaurantInput,
+  ): Promise<MyRestaurantOutput> {
+    try {
+      const today = new Date();
+      const year = today.getFullYear().toString();
+      const month = (today.getMonth() + 1).toString();
+      const date = year.concat(`-${month}-01`);
+      const restaurant = await this.restaurants.findOne({
+        where: {
+          owner: { id: owner.id },
+          id,
+          orders: {
+            createdAt: Raw((created) => `${created} >= :date`, {
+              date,
+            }),
+          },
+        },
+        relations: ['menu', 'orders'],
+      });
+
+      return {
+        restaurant,
+        ok: true,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error,
+      };
+    }
+  }
+
   async allRestaurants({ page }: RestaurantsInput): Promise<RestaurantsOutput> {
     try {
       const [restaurants, totalResults] = await this.restaurants.findAndCount({
-        skip: (page - 1) * 25,
-        take: 25,
+        skip: (page - 1) * 15,
+        take: 15,
         order: {
           isPromoted: 'DESC',
         },
@@ -207,7 +264,7 @@ export class RestaurantService {
       return {
         ok: true,
         restaurants,
-        totalPages: Math.ceil(totalResults / 25),
+        totalPages: Math.ceil(totalResults / 15),
         totalResults,
       };
     } catch (error) {
@@ -251,13 +308,13 @@ export class RestaurantService {
     try {
       const [restaurants, totalResults] = await this.restaurants.findAndCount({
         where: { name: Raw((name) => `${name} ILike '%${query}%'`) },
-        skip: (page - 1) * 25,
-        take: 25,
+        skip: (page - 1) * 15,
+        take: 15,
       });
       return {
         ok: true,
         restaurants,
-        totalPages: Math.ceil(totalResults / 25),
+        totalPages: Math.ceil(totalResults / 15),
         totalResults,
       };
     } catch (error) {

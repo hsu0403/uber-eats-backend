@@ -1,46 +1,36 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { CONFIG_OPTIONS } from 'src/common/common.constants';
-import { EmailModuleOptions, EmailVar } from './email.interfaces';
-import got from 'got';
-import * as FormData from 'form-data';
+import { Injectable } from '@nestjs/common';
+import { MailerService } from '@nestjs-modules/mailer';
+import { EmailVar } from './email.interfaces';
 
 @Injectable()
 export class EmailService {
-  constructor(
-    @Inject(CONFIG_OPTIONS) private readonly options: EmailModuleOptions,
-  ) {
-    // this.sendEmail('testing', 'test', '')
-    //   .then(() => {
-    //     console.log('Message Sent');
-    //   })
-    //   .catch((error) => {
-    //     console.log(error.response.body);
-    //   });
-  }
+  constructor(private readonly mailerSerivce: MailerService) {}
 
   async sendEmail(
     subject: string,
     template: string,
-    emailVars: EmailVar[],
+    context: EmailVar[],
   ): Promise<boolean> {
-    const form = new FormData();
-    form.append('from', `Excited User <mailgun@${this.options.domain}>`);
-    form.append('to', 'hseongun0403@gmail.com');
-    form.append('subject', subject);
-    form.append('template', template);
-    emailVars.forEach((eVars) => form.append(`v:${eVars.key}`, eVars.value));
     try {
-      await got.post(
-        `https://api.mailgun.net/v3/${this.options.domain}/messages`,
-        {
-          headers: {
-            Authorization: `Basic ${Buffer.from(
-              `api:${this.options.apiKey}`,
-            ).toString('base64')}`,
-          },
-          body: form,
+      let toEmail: string;
+      context.find((vl) => {
+        if (vl.key === 'userName') {
+          toEmail = vl.value;
+          return;
+        }
+      });
+
+      const vars: EmailVar = context.find((vl) => vl.key === 'code');
+
+      await this.mailerSerivce.sendMail({
+        to: toEmail,
+        subject,
+        template: `./${template}`,
+        context: {
+          email: toEmail,
+          code: vars.value,
         },
-      );
+      });
       return true;
     } catch (error) {
       return false;
@@ -48,7 +38,7 @@ export class EmailService {
   }
 
   sendVerificationEmail(email: string, code: string) {
-    this.sendEmail('Verify Your Email', 'verify-email', [
+    this.sendEmail('Verify Your Email', 'verify-email.pug', [
       { key: 'code', value: code },
       { key: 'userName', value: email },
     ]);

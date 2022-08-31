@@ -57,7 +57,7 @@ export class OrderResolver {
   @Role(['Delivery', 'Owner'])
   async editOrder(
     @AuthUser() user: User,
-    editOrderInput: EditOrderInput,
+    @Args('input') editOrderInput: EditOrderInput,
   ): Promise<EditOrderOutput> {
     return this.ordersService.editOrder(user, editOrderInput);
   }

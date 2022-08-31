@@ -31,6 +31,7 @@ export class Restaurant extends CoreEntity {
   @ManyToOne(() => Category, (category) => category.restaurants, {
     nullable: true,
     onDelete: 'SET NULL',
+    eager: true,
   })
   category: Category;
 
@@ -46,7 +47,9 @@ export class Restaurant extends CoreEntity {
   ownerId: number;
 
   @Field(() => [Dish], { nullable: true })
-  @OneToMany(() => Dish, (dish) => dish.restaurant, { nullable: true })
+  @OneToMany(() => Dish, (dish) => dish.restaurant, {
+    nullable: true,
+  })
   menu?: Dish[];
 
   @Field(() => Boolean)

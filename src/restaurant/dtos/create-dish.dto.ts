@@ -11,6 +11,9 @@ export class CreateDishInput extends PickType(Dish, [
 ]) {
   @Field(() => Int)
   restaurantId: number;
+
+  @Field(() => String, { nullable: true })
+  photo?: string;
 }
 
 @ObjectType()
